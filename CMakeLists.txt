@@ -10,6 +10,7 @@ set(CMAKE_CXX_STANDARD 17)
 ## is used, also find other catkin packages
 find_package(catkin REQUIRED COMPONENTS
   roscpp
+  rosbag
 )
 
 find_package(Eigen3 REQUIRED)
@@ -42,7 +43,7 @@ catkin_package(
 ## Specify additional locations of header files
 ## Your package locations should be listed before other locations
 include_directories(
-# include
+  include
   ${catkin_INCLUDE_DIRS}
   ${EIGEN3_INCLUDE_DIR}
   ${OpenCV_INCLUDE_DIRS}
@@ -53,10 +54,13 @@ include_directories(
 #   src/${PROJECT_NAME}/slam_exp.cpp
 # )
 
-add_executable(line_plane_fit src/line_plane_fit.cc)
+add_executable(sim_imu_data 
+  src/vio/sim_imu_data.cc
+  src/vio/imu.cc
+  )
 
 ## Specify libraries to link a library or executable target against
-target_link_libraries(line_plane_fit
+target_link_libraries(sim_imu_data
   ${catkin_LIBRARIES}
   ${OpenCV_LIBRARIES}
 )

@@ -1,14 +1,14 @@
 #pragma once
 
-#include "vio/imu.hh"
+#include <math.h>
 #include <eigen3/Eigen/Core>
 #include <eigen3/Eigen/Geometry>
+#include <fstream>
 #include <iostream>
 #include <vector>
-#include <fstream>
-#include <math.h>
+#include "vio/imu.hh"
 
-inline Eigen::Matrix3d euler2Rotation(Eigen::Vector3d eulerAngles){
+inline Eigen::Matrix3d euler2Rotation(Eigen::Vector3d eulerAngles) {
     double roll = eulerAngles(0);
     double pitch = eulerAngles(1);
     double yaw = eulerAngles(2);
@@ -19,14 +19,13 @@ inline Eigen::Matrix3d euler2Rotation(Eigen::Vector3d eulerAngles){
     double cy = std::cos(yaw);
     double sy = std::sin(yaw);
 
-    Eigen::Matrix3d Rib; // body->惯性坐标系
-    Rib << cy * cp, cy * sp * sr - sy * cr, sy * sr +cy * cr *sp,
-                sy * cp, cy * cr +sy *sr  * sp, sp * sy *cr -cy*sr,
-                -sp, cp * sr, cp *cr;
+    Eigen::Matrix3d Rib;  // body->惯性坐标系
+    Rib << cy * cp, cy * sp * sr - sy * cr, sy * sr + cy * cr * sp, sy * cp, cy * cr + sy * sr * sp,
+        sp * sy * cr - cy * sr, -sp, cp * sr, cp * cr;
     return Rib;
 }
 
-inline Eigen::Matrix3d eulerRates2bodyRates(Eigen::Vector3d eulerAngles){
+inline Eigen::Matrix3d eulerRates2bodyRates(Eigen::Vector3d eulerAngles) {
     double roll = eulerAngles(0);
     double pitch = eulerAngles(1);
 
@@ -36,10 +35,7 @@ inline Eigen::Matrix3d eulerRates2bodyRates(Eigen::Vector3d eulerAngles){
     double sp = sin(pitch);
 
     Eigen::Matrix3d R;
-    R << 1, 0, -sp,
-        0, cr, sr * cp,
-        0, -sr, cr * cp;
+    R << 1, 0, -sp, 0, cr, sr * cp, 0, -sr, cr * cp;
 
     return R;
 }
-
