@@ -72,6 +72,8 @@ bool Problem::Solve(int iterations) {
             SolveLinearSystem();
             RemoveLambdaHessianLM();
             if (delta_x_.squaredNorm() <= 1e-6 || false_cnt > 10) {
+                std::cout << "stoped, delta_x  norm: " << delta_x_.squaredNorm() << ",false_cnt:" << false_cnt
+                          << std::endl;
                 stop = true;
                 break;
             }
@@ -89,7 +91,10 @@ bool Problem::Solve(int iterations) {
         }
         iter++;
         // 优化退出条件3： currentChi_ 跟第一次的chi2相比，下降了 1e6 倍则退出
-        if (sqrt(currentChi_) <= stopThresholdLM_) stop = true;
+        if (sqrt(currentChi_) <= stopThresholdLM_) {
+            std::cout << "chi 下降1e6倍" << std::endl;
+            stop = true;
+        }
     }
     std::cout << "problem solve cost: " << t_solve.toc() << " ms" << std::endl;
     std::cout << "   makeHessian cost: " << t_hessian_cost_ << " ms" << std::endl;
@@ -112,7 +117,7 @@ void Problem::MakeHessian() {
     TicToc t_h;
     // 直接构造大的hessin矩阵
     ulong size = ordering_generic_;
-    MatXX H(size, size);
+    MatXX H(MatXX::Zero(size, size));
     VecX b(VecX::Zero(size));
     // 变量每个edge,计算残差,最后计算H矩阵
     for (auto& edge : edges_) {
@@ -173,6 +178,7 @@ void Problem::ComputeLambdaInitLM() {
     for (const auto& edge : edges_) {
         currentChi_ += edge.second->Chi2();
     }
+    // std::cout << "currentChi: " << currentChi_ << std::endl;
     // 判断是否有先验
     if (err_prior_.rows() > 0) {
         currentChi_ += err_prior_.norm();
@@ -181,8 +187,8 @@ void Problem::ComputeLambdaInitLM() {
     stopThresholdLM_ = 1e-6 * currentChi_;
     assert(Hessian_.rows() == Hessian_.cols() && "hessian is not squart");
     double maxDiagonal = 0;
-    size_t cols = Hessian_.cols();
-    for (int i = 0; i > cols; ++i) {
+    size_t size = Hessian_.cols();
+    for (int i = 0; i < size; ++i) {
         maxDiagonal = std::max(std::fabs(Hessian_(i, i)), maxDiagonal);
     }
     currentLambda_ = 1e-5 * maxDiagonal;
@@ -214,6 +220,47 @@ void Problem::UpdateStates() {
         // segment(i,j) 从i开始取j个数据
         VecX delta = delta_x_.segment(idx, dim);
         vertex.second->plus(delta);
+    }
+}
+
+void Problem::RollbackStates() {
+    for (auto& vertex : verticies_) {
+        int idx = vertex.second->OrderingId();
+        int dimension = vertex.second->getLocalDimension();
+        Vec3 delta = delta_x_.segment(idx, dimension);
+        // std::cout << "vertex: " << vertex.second->getParams().transpose() << std::endl;
+        vertex.second->plus(-delta);
+        // std::cout << "vertex: " << vertex.second->getParams().transpose() << std::endl;
+    }
+}
+
+bool Problem::IsGoodStepInLM() {
+    double scale = 0;
+    scale = delta_x_.transpose() * (currentLambda_ * delta_x_ + b_);
+    scale += 1e-3;  // 防止scale为0
+
+    double tempChi = 0.0;
+    for (auto edge : edges_) {
+        // 更新状态后，重新计算残差
+        edge.second->ComputeResidual();
+        tempChi += edge.second->Chi2();
+    }
+    std::cout << "scale:" << scale << std::endl;
+    std::cout << "currentChi:" << currentChi_ << ", tempChi" << tempChi << std::endl;
+    double rho = (currentChi_ - tempChi) / scale;
+    std::cout << "rho:" << rho << std::endl;
+    if (rho > 0 && std::isfinite(tempChi)) {
+        double alpha = 1.0 - std::pow((2 * rho - 1), 3);
+        alpha = std::min(alpha, 2.0 / 3.0);
+        double scaleFactor = (std::max)(1.0 / 3.0, alpha);
+        currentLambda_ *= scaleFactor;
+        ni_ = 2;
+        currentChi_ = tempChi;
+        return true;
+    } else {
+        currentChi_ *= ni_;
+        ni_ *= 2;
+        return false;
     }
 }
 
