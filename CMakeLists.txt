@@ -53,15 +53,31 @@ include_directories(
 # add_library(${PROJECT_NAME}
 #   src/${PROJECT_NAME}/slam_exp.cpp
 # )
+add_library(vio_backend 
+  src/vio/curve_fitting/backend/edge.cc
+  src/vio/curve_fitting/backend/vertex.cc
+  src/vio/curve_fitting/backend/problem.cc)
+
+# target_link_libraries(vio_backend)
 
 add_executable(sim_imu_data 
   src/vio/sim_imu_data.cc
   src/vio/imu.cc
   )
-
-## Specify libraries to link a library or executable target against
+  ## Specify libraries to link a library or executable target against
 target_link_libraries(sim_imu_data
-  ${catkin_LIBRARIES}
-  ${OpenCV_LIBRARIES}
+${catkin_LIBRARIES}
+${OpenCV_LIBRARIES}
 )
+
+add_executable(
+  curve_fitting
+  src/vio/curve_fitting/app/CurveFitting.cc)
+
+target_link_libraries(curve_fitting
+  vio_backend
+  glog
+)
+
+
 
