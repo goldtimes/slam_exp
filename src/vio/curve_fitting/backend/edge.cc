@@ -1,8 +1,9 @@
-#include "backend/edge.hh"
+#include "vio/curve_fitting/backend/edge.hh"
 #include <iostream>
-#include "backend/vertex.hh"
+#include "vio/curve_fitting/backend/vertex.hh"
 
 namespace vio::backend {
+
 unsigned long global_edge_id = 0;
 
 Edge::Edge(int residual_dimension, int num_verticies, const std::vector<std::string>& verticies_types) {
@@ -12,6 +13,7 @@ Edge::Edge(int residual_dimension, int num_verticies, const std::vector<std::str
     }
     jacobians_.resize(num_verticies);
     id_ = global_edge_id++;
+    // 构造函数中设置了信息矩阵
     Eigen::MatrixXd information(residual_dimension, residual_dimension);
     information.setIdentity();
     information_ = information;

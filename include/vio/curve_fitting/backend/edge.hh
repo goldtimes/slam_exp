@@ -102,7 +102,7 @@ class Edge {
         ordering_id_ = id;
     }
 
-   private:
+   protected:
     unsigned long id_;                                // 边的id
     int ordering_id_;                                 // 加入problem中排序后的点
     std::vector<std::string> verticies_types_;        // 各类顶点类型信息
