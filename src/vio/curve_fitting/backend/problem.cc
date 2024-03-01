@@ -245,10 +245,7 @@ bool Problem::IsGoodStepInLM() {
         edge.second->ComputeResidual();
         tempChi += edge.second->Chi2();
     }
-    std::cout << "scale:" << scale << std::endl;
-    std::cout << "currentChi:" << currentChi_ << ", tempChi" << tempChi << std::endl;
     double rho = (currentChi_ - tempChi) / scale;
-    std::cout << "rho:" << rho << std::endl;
     if (rho > 0 && std::isfinite(tempChi)) {
         double alpha = 1.0 - std::pow((2 * rho - 1), 3);
         alpha = std::min(alpha, 2.0 / 3.0);
@@ -258,7 +255,7 @@ bool Problem::IsGoodStepInLM() {
         currentChi_ = tempChi;
         return true;
     } else {
-        currentChi_ *= ni_;
+        currentLambda_ *= ni_;
         ni_ *= 2;
         return false;
     }
