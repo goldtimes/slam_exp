@@ -15,6 +15,8 @@ find_package(catkin REQUIRED COMPONENTS
 
 find_package(Eigen3 REQUIRED)
 find_package(OpenCV 3.4.10 REQUIRED)
+find_package(Ceres REQUIRED)
+
 
 ## System dependencies are found with CMake's conventions
 # find_package(Boost REQUIRED COMPONENTS system)
@@ -47,6 +49,7 @@ include_directories(
   ${catkin_INCLUDE_DIRS}
   ${EIGEN3_INCLUDE_DIR}
   ${OpenCV_INCLUDE_DIRS}
+  ${CERES_INCLUDE_DIRS}
 )
 
 ## Declare a C++ library
@@ -82,5 +85,10 @@ target_link_libraries(curve_fitting
 
 add_executable(gaussNewton src/vio/curve_fitting/app/gaussNewton.cc)
 target_link_libraries(gaussNewton)
+
+add_executable(ceresCurveFitting src/vio/curve_fitting/app/ceresCurveFitting.cc)
+target_link_libraries(ceresCurveFitting
+  ${CERES_LIBRARIES}
+)
 
 
