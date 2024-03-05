@@ -80,4 +80,7 @@ target_link_libraries(curve_fitting
 )
 
 
+add_executable(gaussNewton src/vio/curve_fitting/app/gaussNewton.cc)
+target_link_libraries(gaussNewton)
+
 
