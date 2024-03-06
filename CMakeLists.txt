@@ -56,6 +56,8 @@ include_directories(
 # add_library(${PROJECT_NAME}
 #   src/${PROJECT_NAME}/slam_exp.cpp
 # )
+add_subdirectory(src/vio/vo_frontend)
+
 add_library(vio_backend 
   src/vio/curve_fitting/backend/edge.cc
   src/vio/curve_fitting/backend/vertex.cc
