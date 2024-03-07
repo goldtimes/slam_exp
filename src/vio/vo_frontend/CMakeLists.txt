@@ -20,3 +20,8 @@ add_executable(pose_estimation_2d2d pose_estimation_2d2d.cc)
 target_link_libraries(pose_estimation_2d2d 
     ${OpenCV_LIBRARIES}
 )
+
+add_executable(triangulation triangulation.cc)
+target_link_libraries(triangulation 
+    ${OpenCV_LIBRARIES}
+)
