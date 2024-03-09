@@ -1,7 +1,15 @@
+#include <g2o/core/base_unary_edge.h>
+#include <g2o/core/base_vertex.h>
+#include <g2o/core/block_solver.h>
+#include <g2o/core/optimization_algorithm_gauss_newton.h>
+#include <g2o/core/solver.h>
+#include <g2o/core/sparse_optimizer.h>
+#include <g2o/solvers/dense/linear_solver_dense.h>
 #include <sophus/se3.h>
 #include <Eigen/Core>
 #include <Eigen/Dense>
 #include <chrono>
+#include <iomanip>
 #include <iostream>
 #include <opencv2/calib3d/calib3d.hpp>
 #include <opencv2/core/core.hpp>
@@ -26,10 +34,12 @@ using VecVector2d = vector<Eigen::Vector2d, Eigen::aligned_allocator<Eigen::Vect
 
 void BAGaussNewton(const VecVector3d &points_3d, const VecVector2d &points_2d, const Mat &K, Sophus::SE3 &pose);
 
+void BAG2o(const VecVector3d &points_3d, VecVector2d &points_2d, const Mat &K, Sophus::SE3 &pose);
+
 int main(int argc, char **argv) {
-    std::string img_path_1 = "/home/kilox/catkin_ws/robot_algo_ws/src/slam_exp/img_data/1.png";
-    std::string img_path_2 = "/home/kilox/catkin_ws/robot_algo_ws/src/slam_exp/img_data/2.png";
-    std::string img_depth_path = "";
+    std::string img_path_1 = "/home/hang/robot_algo_ws/src/slam_exp/img_data/1.png";
+    std::string img_path_2 = "/home/hang/robot_algo_ws/src/slam_exp/img_data/2.png";
+    std::string img_depth_path = "/home/hang/robot_algo_ws/src/slam_exp/img_data/1_depth.png";
 
     Mat img_1 = imread(img_path_1, CV_LOAD_IMAGE_COLOR);
     Mat img_2 = imread(img_path_2, CV_LOAD_IMAGE_COLOR);
@@ -86,6 +96,13 @@ int main(int argc, char **argv) {
     time_used = chrono::duration_cast<chrono::duration<double>>(t2 - t1);
     cout << "solve pnp by gauss newton cost time: " << time_used.count() << " seconds." << endl;
 
+    cout << "calling bundle adjustment by g2o" << endl;
+    Sophus::SE3 pose_g2o;
+    t1 = chrono::steady_clock::now();
+    BAG2o(pts_3d_eigen, pts_2d_eigen, K, pose_g2o);
+    t2 = chrono::steady_clock::now();
+    time_used = chrono::duration_cast<chrono::duration<double>>(t2 - t1);
+    cout << "solve pnp by g2o cost time: " << time_used.count() << " seconds." << endl;
     return 0;
 }
 
@@ -138,6 +155,9 @@ Point2d pixel2cam(const Point2d &p, const Mat &K) {
     return Point2d((p.x - K.at<double>(0, 2)) / K.at<double>(0, 0), (p.y - K.at<double>(1, 2)) / K.at<double>(1, 1));
 }
 
+/**
+ * @brief RGBD相机，有深度信息
+ */
 void BAGaussNewton(const VecVector3d &points_3d, const VecVector2d &points_2d, const Mat &K, Sophus::SE3 &pose) {
     using Vector6d = Eigen::Matrix<double, 6, 1>;
     const int iterations = 10;
@@ -146,8 +166,167 @@ void BAGaussNewton(const VecVector3d &points_3d, const VecVector2d &points_2d, c
     double fy = K.at<double>(1, 1);
     double cx = K.at<double>(0, 2);
     double cy = K.at<double>(1, 2);
-    // 
+    //
     for (int iter = 0; iter < iterations; ++iter) {
-    
+        Eigen::Matrix<double, 6, 6> H = Eigen::Matrix<double, 6, 6>::Zero();
+        Eigen::Matrix<double, 6, 1> b = Eigen::Matrix<double, 6, 1>::Zero();
+        cost = 0.0;
+        // 计算cost
+        for (int i = 0; i < points_3d.size(); ++i) {
+            Eigen::Vector3d pc = pose * points_3d[i];
+            double inv_z = 1.0 / pc[2];
+            double inv_z2 = inv_z * inv_z;
+            // 投影点
+            Eigen::Vector2d proj(fx * pc[0] / pc[2] + cx, fy * pc[1] / pc[2] + cy);
+            Eigen::Vector2d e = points_2d[i] - proj;  // 误差
+            cost += e.squaredNorm();
+            Eigen::Matrix<double, 2, 6> J;  // jacobian矩阵 7.46公式
+            // clang-format off
+            J << -fx * inv_z, 0, fx * pc[0] *inv_z2, fx * pc[0] * pc[1] * inv_z2, -fx - fx * pc[0] * pc[0] * inv_z2, fx * pc[1] * inv_z,
+                0, -fy * inv_z , fy * pc[1] * inv_z2, fy + fy * pc[1] * pc[1] * inv_z2, -fy * pc[0] * pc[1] * inv_z2, -fy * pc[0] * inv_z;
+            // clang-format on
+
+            H += J.transpose() * J;
+            b += -J.transpose() * e;
+        }
+        Eigen::Matrix<double, 6, 1> dx;
+        dx = H.ldlt().solve(b);
+        if (std::isnan(dx[0])) {
+            cout << "result is nan" << endl;
+            break;
+        }
+        // 误差没有减小
+        if (iter > 0 && cost >= last_cost) {
+            cout << "cost: " << cost << ", last cost: " << last_cost << endl;
+            break;
+        }
+        pose = Sophus::SE3::exp(dx) * pose;
+        last_cost = cost;
+        cout << "iteration " << iter << " cost=" << setprecision(12) << cost << endl;
+        if (dx.norm() < 1e-6) {
+            // converge
+            break;
+        }
     }
+
+    cout << "pose by g-n: \n" << pose.matrix() << endl;
+}
+
+class VertexPose : public g2o::BaseVertex<6, Sophus::SE3> {
+   public:
+    EIGEN_MAKE_ALIGNED_OPERATOR_NEW;
+    // 定义顶点的值
+    virtual void setToOriginImpl() override {
+        _estimate = Sophus::SE3();
+    }
+    // 定义顶点的更新方式 x + dx;
+    virtual void oplusImpl(const double *update) override {
+        Eigen::Matrix<double, 6, 1> update_eigen;
+        update_eigen << update[0], update[1], update[2], update[3], update[4], update[5];
+        _estimate = Sophus::SE3::exp(update_eigen) * _estimate;
+    }
+
+    virtual bool read(istream &in) override {
+    }
+
+    virtual bool write(ostream &out) const override {
+    }
+};
+
+// 边的定义，像素的残差维度为x,y所以是2
+class EdgeProjection : public g2o::BaseUnaryEdge<2, Eigen::Vector2d, VertexPose> {
+   public:
+    EIGEN_MAKE_ALIGNED_OPERATOR_NEW;
+
+    EdgeProjection(const Eigen::Vector3d &pos3d, const Eigen::Matrix3d &K) : _pos3d(pos3d), _K(K) {
+    }
+
+    virtual bool read(istream &in) override {
+    }
+
+    virtual bool write(ostream &out) const override {
+    }
+
+    // 误差的定义
+    virtual void computeError() override {
+        const VertexPose *v = static_cast<VertexPose *>(_vertices[0]);
+        Sophus::SE3 T = v->estimate();
+        // 转换到相机坐标系下
+        Eigen::Vector3d pos_pixel = _K * (T * _pos3d);
+        pos_pixel /= pos_pixel[2];  // 归一化
+        _error = _measurement - pos_pixel.head<2>();
+    }
+    // Jacobian的求解
+    virtual void linearizeOplus() override {
+        const VertexPose *v = static_cast<VertexPose *>(_vertices[0]);
+        Sophus::SE3 T = v->estimate();
+        // 转换到相机坐标系下
+        Eigen::Vector3d pose_cam = T * _pos3d;
+        double fx = _K(0, 0);
+        double fy = _K(1, 1);
+        double cx = _K(0, 2);
+        double cy = _K(1, 2);
+        double X = pose_cam[0];
+        double Y = pose_cam[1];
+        double Z = pose_cam[2];
+        double Z2 = Z * Z;
+        // clang-format off
+        _jacobianOplusXi << -fx / Z, 0, fx * X / Z2, fx * X * Y / Z2, -fx - fx * X * X / Z2, fx * Y / Z,
+                            0, -fy / Z, fy * Y / (Z * Z), fy + fy * Y * Y / Z2, -fy * X * Y / Z2, -fy * X / Z;
+        // clang-format on
+    }
+
+   public:
+    // 世界坐标系下的3D点
+    Eigen::Vector3d _pos3d;
+    // 相机内参
+    Eigen::Matrix3d _K;
+};
+
+void BAG2o(const VecVector3d &points_3d, VecVector2d &points_2d, const Mat &K, Sophus::SE3 &pose) {
+    // 构建图优化
+    // 设定g2o
+    using BlockSolverType = g2o::BlockSolver<g2o::BlockSolverTraits<6, 3>>;  // pose 维度为6, 像素维度3
+    using LinearSolverType = g2o::LinearSolverDense<BlockSolverType::PoseMatrixType>;
+    // 梯度下降的方法可以选择gn, lm, dogleg
+    auto solver = new g2o::OptimizationAlgorithmGaussNewton(
+        g2o::make_unique<BlockSolverType>(g2o::make_unique<LinearSolverType>()));
+    g2o::SparseOptimizer optimizer;  // 图模型，稀疏
+    optimizer.setAlgorithm(solver);
+    optimizer.setVerbose(true);
+    // 创建顶点
+    VertexPose *vertex = new VertexPose();
+    vertex->setId(0);
+    vertex->setEstimate(Sophus::SE3());
+    // 添加顶点
+    optimizer.addVertex(vertex);
+
+    // K
+    Eigen::Matrix3d K_eigen;
+    K_eigen << K.at<double>(0, 0), K.at<double>(0, 1), K.at<double>(0, 2), K.at<double>(1, 0), K.at<double>(1, 1),
+        K.at<double>(1, 2), K.at<double>(2, 0), K.at<double>(2, 1), K.at<double>(2, 2);
+
+    // 边
+    int index = 1;
+    for (size_t i = 0; i < points_2d.size(); ++i) {
+        auto p2d = points_2d[i];
+        auto p3d = points_3d[i];
+        EdgeProjection *edge = new EdgeProjection(p3d, K_eigen);
+        edge->setId(index);
+        edge->setVertex(0, vertex);
+        edge->setMeasurement(p2d);
+        edge->setInformation(Eigen::Matrix2d::Identity());
+        optimizer.addEdge(edge);
+        index++;
+    }
+    // 求解
+    chrono::steady_clock::time_point t1 = chrono::steady_clock::now();
+    optimizer.setVerbose(true);
+    optimizer.initializeOptimization();
+    optimizer.optimize(10);
+    chrono::steady_clock::time_point t2 = chrono::steady_clock::now();
+    chrono::duration<double> time_used = chrono::duration_cast<chrono::duration<double>>(t2 - t1);
+    cout << "optimization costs time: " << time_used.count() << " seconds." << endl;
+    cout << "pose estimated by g2o =\n" << vertex->estimate().matrix() << endl;
+    pose = vertex->estimate();
 }
