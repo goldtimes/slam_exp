@@ -39,3 +39,11 @@ target_link_libraries(pose_estimation_3d2d
     g2o_core
     g2o_stuff
 )
+
+add_executable(pose_estimation_3d3d pose_estimation_3d3d.cc)
+target_link_libraries(pose_estimation_3d3d 
+    ${OpenCV_LIBRARIES}
+    ${Sophus_LIBRARIES}
+    g2o_core
+    g2o_stuff
+)
