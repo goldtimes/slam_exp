@@ -1,11 +1,16 @@
 #pragma once
 
 // std
+#include <atomic>
+#include <condition_variable>
 #include <iostream>
+#include <list>
 #include <memory>
 #include <mutex>
 #include <string>
 #include <thread>
+#include <typeinfo>
+#include <unordered_map>
 #include <vector>
 
 // eigen

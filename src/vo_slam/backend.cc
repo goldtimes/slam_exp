@@ -1,0 +1,7 @@
+#include "vo_slam/backend.hh"
+#include "vo_slam/algorithm.hh"
+#include "vo_slam/common_include.hh"
+#include "vo_slam/feature.hh"
+// #include "vo_slam/g2o_type.hh"
+#include "vo_slam/map.hh"
+#include "vo_slam/map_point.hh"
