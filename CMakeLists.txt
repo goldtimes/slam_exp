@@ -16,6 +16,9 @@ find_package(catkin REQUIRED COMPONENTS
 find_package(Eigen3 REQUIRED)
 find_package(OpenCV 3.4.10 REQUIRED)
 find_package(Ceres REQUIRED)
+find_package(teaserpp REQUIRED)
+find_package(PCL REQUIRED)
+
 
 
 ## System dependencies are found with CMake's conventions
@@ -50,48 +53,59 @@ include_directories(
   ${EIGEN3_INCLUDE_DIR}
   ${OpenCV_INCLUDE_DIRS}
   ${CERES_INCLUDE_DIRS}
+  ${PCL_INCLUDE_DIRS}
+  ${Boost_INCLUDE_DIRS}
 )
 
 ## Declare a C++ library
 # add_library(${PROJECT_NAME}
 #   src/${PROJECT_NAME}/slam_exp.cpp
 # )
-add_subdirectory(src/vio/vo_frontend)
-add_subdirectory(src/test)
+# add_subdirectory(src/vio/vo_frontend)
+# add_subdirectory(src/test)
 
-add_library(vio_backend 
-  src/vio/curve_fitting/backend/edge.cc
-  src/vio/curve_fitting/backend/vertex.cc
-  src/vio/curve_fitting/backend/problem.cc)
+# add_library(vio_backend 
+#   src/vio/curve_fitting/backend/edge.cc
+#   src/vio/curve_fitting/backend/vertex.cc
+#   src/vio/curve_fitting/backend/problem.cc)
 
-# target_link_libraries(vio_backend)
+# # target_link_libraries(vio_backend)
 
-add_executable(sim_imu_data 
-  src/vio/sim_imu_data.cc
-  src/vio/imu.cc
-  )
-  ## Specify libraries to link a library or executable target against
-target_link_libraries(sim_imu_data
-${catkin_LIBRARIES}
-${OpenCV_LIBRARIES}
-)
+# add_executable(sim_imu_data 
+#   src/vio/sim_imu_data.cc
+#   src/vio/imu.cc
+#   )
+#   ## Specify libraries to link a library or executable target against
+# target_link_libraries(sim_imu_data
+# ${catkin_LIBRARIES}
+# ${OpenCV_LIBRARIES}
+# )
 
-add_executable(
-  curve_fitting
-  src/vio/curve_fitting/app/CurveFitting.cc)
+# add_executable(
+#   curve_fitting
+#   src/vio/curve_fitting/app/CurveFitting.cc)
 
-target_link_libraries(curve_fitting
-  vio_backend
-  glog
-)
+# target_link_libraries(curve_fitting
+#   vio_backend
+#   glog
+# )
 
 
-add_executable(gaussNewton src/vio/curve_fitting/app/gaussNewton.cc)
-target_link_libraries(gaussNewton)
+# add_executable(gaussNewton src/vio/curve_fitting/app/gaussNewton.cc)
+# target_link_libraries(gaussNewton)
 
-add_executable(ceresCurveFitting src/vio/curve_fitting/app/ceresCurveFitting.cc)
-target_link_libraries(ceresCurveFitting
-  ${CERES_LIBRARIES}
+# add_executable(ceresCurveFitting src/vio/curve_fitting/app/ceresCurveFitting.cc)
+# target_link_libraries(ceresCurveFitting
+#   ${CERES_LIBRARIES}
+# )
+
+add_executable(teaser_test test/test_teaser.cc)
+target_link_libraries(teaser_test
+  ${PCL_LIBRARIES}
+  ${Boost_LIBRARIES}
+  teaserpp::teaser_registration 
+  teaserpp::teaser_features
+  teaserpp::teaser_io
 )
 
 
